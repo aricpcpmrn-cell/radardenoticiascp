@@ -96,7 +96,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               return (
                 <button
                   key={range}
-                  onClick={() => onFilterChange({ dateRange: range })}
+                  onClick={() => onFilterChange({ dateRange: range }, true)}
                   className={`px-2.5 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
                     active
                       ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs font-semibold'

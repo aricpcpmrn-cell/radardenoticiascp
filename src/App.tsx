@@ -10,8 +10,8 @@ import { playTacticalAlertChime } from './utils/audioAlert';
 import { matchesLocality, matchesDateRange } from './utils/filterUtils';
 import { Radio, ShieldAlert, Sparkles, AlertTriangle, ExternalLink, Inbox, RotateCcw } from 'lucide-react';
 
-const STORAGE_KEY_ARTICLES = 'radar_cpc_articles_v6_police_rn';
-const STORAGE_KEY_SELECTED = 'radar_cpc_selected_v6_police_rn';
+const STORAGE_KEY_ARTICLES = 'radar_cpc_articles_v8_real_rn_2026';
+const STORAGE_KEY_SELECTED = 'radar_cpc_selected_v8_real_rn_2026';
 const STORAGE_KEY_THEME = 'radar_cpc_theme';
 const STORAGE_KEY_AUDIO = 'radar_cpc_audio_muted';
 
@@ -121,19 +121,11 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         if (data.articles && Array.isArray(data.articles)) {
-          // Merge newly fetched articles into current pool to preserve cross-region browsing
-          setArticles(prev => {
-            const map = new Map<string, NewsItem>();
-            for (const a of data.articles) {
-              map.set(a.url, a);
-            }
-            for (const a of prev) {
-              if (!map.has(a.url)) {
-                map.set(a.url, a);
-              }
-            }
-            return Array.from(map.values());
-          });
+          // Set articles directly to reflect the exact scan results for current filters
+          setArticles(data.articles);
+          try {
+            localStorage.setItem(STORAGE_KEY_ARTICLES, JSON.stringify(data.articles));
+          } catch {}
           setSelectedIds(new Set(data.articles.map((a: NewsItem) => a.id)));
           setLastScanTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 

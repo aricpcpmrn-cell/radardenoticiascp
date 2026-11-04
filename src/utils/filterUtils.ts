@@ -6,9 +6,34 @@
 import { NewsItem } from '../types/radar';
 
 /**
- * Parses any article publication string or timestamp into epoch milliseconds
+ * Parses any article publication string or timestamp into epoch milliseconds.
+ * Always checks for embedded publication dates in the URL first (e.g. /2026/11/04/ or /2017/04/17/)
+ * to strictly prevent historical articles from masquerading as recent news.
  */
 export function parseArticleTimestamp(item: NewsItem): number {
+  // 1. Check URL for explicit publication date (e.g. /2026/11/04/ or /2017/04/17/)
+  if (item.url) {
+    const urlDateMatch = item.url.match(/\/(20\d\d)\/(\d{1,2})\/(\d{1,2})\//);
+    if (urlDateMatch) {
+      const year = parseInt(urlDateMatch[1], 10);
+      const month = parseInt(urlDateMatch[2], 10) - 1;
+      const day = parseInt(urlDateMatch[3], 10);
+      const urlDate = new Date(year, month, day, 12, 0, 0);
+
+      // If item has a specific hour/min timestamp on that exact same day, keep it
+      if (typeof item.timestamp === 'number' && !isNaN(item.timestamp) && item.timestamp > 0) {
+        const itemD = new Date(item.timestamp);
+        if (itemD.getFullYear() === year && itemD.getMonth() === month && itemD.getDate() === day) {
+          return item.timestamp;
+        }
+      }
+
+      // If the URL has an older year (e.g. 2017), the URL date strictly rules!
+      return urlDate.getTime();
+    }
+  }
+
+  // 2. Direct numeric timestamp if valid
   if (typeof item.timestamp === 'number' && !isNaN(item.timestamp) && item.timestamp > 0) {
     return item.timestamp;
   }
@@ -17,20 +42,20 @@ export function parseArticleTimestamp(item: NewsItem): number {
   const now = Date.now();
   if (!str) return now;
 
-  // 1. Direct ISO or Date.parse
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-    const t = new Date(str).getTime();
-    if (!isNaN(t)) return t;
+  // 3. Direct ISO or standard RFC822 / Date.parse (e.g. "Wed, 04 Nov 2026 13:06:55 -0000")
+  const parsedDirect = Date.parse(str);
+  if (!isNaN(parsedDirect)) {
+    return parsedDirect;
   }
 
   const lower = str.toLowerCase();
 
-  // 2. "Agora mesmo" or "Agora"
+  // 4. "Agora mesmo" or "Agora"
   if (lower.includes('agora')) {
     return now;
   }
 
-  // 3. "Hoje, HH:MM" or "Hoje"
+  // 5. "Hoje, HH:MM" or "Hoje"
   if (lower.includes('hoje')) {
     const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
     const d = new Date();
@@ -40,7 +65,7 @@ export function parseArticleTimestamp(item: NewsItem): number {
     return d.getTime();
   }
 
-  // 4. "Ontem, HH:MM" or "Ontem"
+  // 6. "Ontem, HH:MM" or "Ontem"
   if (lower.includes('ontem')) {
     const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
     const d = new Date(now - 24 * 3600 * 1000);
@@ -50,7 +75,7 @@ export function parseArticleTimestamp(item: NewsItem): number {
     return d.getTime();
   }
 
-  // 5. "DD/MM às HH:MM" or "DD/MM/AAAA" or "DD/MM"
+  // 7. "DD/MM às HH:MM" or "DD/MM/AAAA" or "DD/MM"
   const brMatch = str.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:\s*(?:às|as|,)\s*(\d{1,2}):(\d{2}))?/i);
   if (brMatch) {
     const day = parseInt(brMatch[1], 10);
@@ -63,39 +88,39 @@ export function parseArticleTimestamp(item: NewsItem): number {
     return d.getTime();
   }
 
-  // 6. "Recente" -> approximately 3 days ago
-  if (lower.includes('recente')) {
-    return now - 3 * 24 * 3600 * 1000;
-  }
-
-  // Default fallback
-  return now - 12 * 3600 * 1000;
+  // Default fallback: 24h ago
+  return now - 24 * 3600 * 1000;
 }
 
 /**
- * Checks if an article matches the selected date period filter
+ * Checks if an article strictly matches the selected date period filter.
+ * Prevents old news from past weeks or years from appearing in 'hoje' or '24h'.
  */
 export function matchesDateRange(item: NewsItem, dateRange: 'hoje' | '24h' | '7d' | '30d'): boolean {
   const ts = parseArticleTimestamp(item);
   const now = Date.now();
+  const diff = now - ts;
 
   if (dateRange === 'hoje') {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Include articles from today 00:00:00 onwards, or published in the last 20 hours
-    return ts >= today.getTime() || (now - ts) <= 20 * 3600 * 1000;
+    // Must be published today (>= today 00:00:00 local) and within the last 24h
+    return ts >= today.getTime() && diff <= 24 * 3600 * 1000;
   }
 
   if (dateRange === '24h') {
-    return (now - ts) <= 24 * 3600 * 1000;
+    // Strictly in the last 24 hours
+    return diff >= -3600 * 1000 && diff <= 24 * 3600 * 1000;
   }
 
   if (dateRange === '7d') {
-    return (now - ts) <= 7 * 24 * 3600 * 1000;
+    // Strictly in the last 7 days
+    return diff >= -3600 * 1000 && diff <= 7 * 24 * 3600 * 1000;
   }
 
   if (dateRange === '30d') {
-    return (now - ts) <= 30 * 24 * 3600 * 1000;
+    // Strictly in the last 30 days
+    return diff >= -3600 * 1000 && diff <= 30 * 24 * 3600 * 1000;
   }
 
   return true;
