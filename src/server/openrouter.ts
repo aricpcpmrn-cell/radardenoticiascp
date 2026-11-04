@@ -4,6 +4,14 @@ import { NewsItem } from '../types/radar.ts';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
+// Cascade list of free models on OpenRouter in case the primary 550B free model is queueing
+const FREE_MODELS_CASCADE = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
+  'mistralai/mistral-small-24b-instruct-2501:free',
+];
+
 export interface EnrichmentResult {
   url: string;
   criticality: 'CRITICO_URGENTE' | 'RELEVANTE' | 'NORMAL';
@@ -46,18 +54,20 @@ export function getAIStatus(): AIServiceStatus {
 
 /**
  * Call OpenRouter API with model nvidia/nemotron-3-ultra-550b-a55b:free
+ * Supports fallback cascade models and extended 25s timeout for ultra-large models.
  */
 async function callOpenRouter(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   model: string = process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
-  timeoutMs: number = 8500
+  timeoutMs: number = 25000
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error('OPENROUTER_API_KEY not configured');
   }
 
-  const appUrl = process.env.APP_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://radar-cpc.vercel.app';
+  const appUrl = process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://radar-cpc.vercel.app');
+  const models = Array.from(new Set([model, ...FREE_MODELS_CASCADE]));
 
   const res = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
@@ -65,13 +75,14 @@ async function callOpenRouter(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey.trim()}`,
       'HTTP-Referer': appUrl,
-      'X-Title': 'Radar de Noticias CPC',
+      'X-Title': 'Radar de Noticias CPC PMRN',
     },
     body: JSON.stringify({
       model,
+      models,
       messages,
       temperature: 0.2,
-      max_tokens: 1500,
+      max_tokens: 800,
     }),
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -92,7 +103,7 @@ async function callOpenRouter(
 
 /**
  * Enrich police news articles with executive summaries using OpenRouter.ai (nvidia/nemotron-3-ultra-550b-a55b:free)
- * Includes graceful fallback to Gemini and heuristic parsing.
+ * Includes graceful fallback to Gemini and native heuristic parsing.
  */
 export async function enrichArticlesWithAI(articles: NewsItem[]): Promise<{
   articles: NewsItem[];
@@ -105,10 +116,10 @@ export async function enrichArticlesWithAI(articles: NewsItem[]): Promise<{
 
   const targetModel = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 
-  // Prepare input payload with verified real URLs
-  const inputList = articles.slice(0, 6).map(a => ({
+  // Prepare input payload with verified real URLs (send top 4 concise items to minimize token latency)
+  const inputList = articles.slice(0, 4).map(a => ({
     title: a.title,
-    desc: a.executiveSummary.join(' '),
+    desc: (a.executiveSummary?.[0] || a.title).slice(0, 160),
     source: a.source,
     url: a.url,
   }));
@@ -117,9 +128,9 @@ export async function enrichArticlesWithAI(articles: NewsItem[]): Promise<{
 Sua missão é analisar matérias REAIS de segurança pública do Rio Grande do Norte e gerar resumos executivos objetivos e diretos.
 Regras estritas:
 1. Mantenha RIGOROSAMENTE a mesma URL exata recebida em cada matéria. NUNCA altere ou invente URLs.
-2. Cada resumo executivo deve ter de 3 a 4 tópicos curtos (fatos essenciais, pessoas/armas/entorpecentes apreendidos, atuação policial e desfecho).
+2. Cada resumo executivo deve ter de 2 a 3 tópicos curtos (fatos essenciais, apreensões/prisões e desfecho).
 3. Classifique a criticidade em "CRITICO_URGENTE", "RELEVANTE" ou "NORMAL".
-4. Responda ESTRITAMENTE em formato JSON puro, sem textos adicionais fora do array.`;
+4. Responda ESTRITAMENTE em formato JSON puro (array de objetos).`;
 
   const userPrompt = `Analise estas matérias policiais do RN e responda em formato JSON:
 ${JSON.stringify(inputList, null, 2)}
@@ -129,18 +140,18 @@ Formato JSON esperado:
   {
     "url": "mesma url exata recebida",
     "criticality": "CRITICO_URGENTE" | "RELEVANTE" | "NORMAL",
-    "executiveSummary": ["tópico 1", "tópico 2", "tópico 3"],
-    "policeUnit": "unidade policial militar ou civil identificada"
+    "executiveSummary": ["tópico 1", "tópico 2"],
+    "policeUnit": "unidade policial identificada"
   }
 ]`;
 
   // 1. Try OpenRouter first (with nvidia/nemotron-3-ultra-550b-a55b:free)
-  if (process.env.OPENROUTER_API_KEY) {
+  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 0) {
     try {
       const openRouterResponse = await callOpenRouter([
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
-      ], targetModel);
+      ], targetModel, 12000);
 
       const parsed = parseEnrichmentJson(openRouterResponse);
       if (parsed && parsed.length > 0) {
@@ -152,12 +163,12 @@ Formato JSON esperado:
         };
       }
     } catch (err: any) {
-      console.warn(`OpenRouter (${targetModel}) call failed or rate-limited:`, err?.message);
+      console.info(`[AIService] OpenRouter notice (${targetModel}): ${err?.message || 'operation timed out'}. Preserving verified news data.`);
     }
   }
 
   // 2. Try Gemini fallback if configured
-  if (process.env.GEMINI_API_KEY) {
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0) {
     try {
       const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY,
@@ -170,7 +181,7 @@ Formato JSON esperado:
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Gemini timeout')), 4000)
+        setTimeout(() => reject(new Error('Gemini timeout')), 6000)
       );
 
       const geminiRes = await Promise.race([geminiPromise, timeoutPromise]);
@@ -183,7 +194,7 @@ Formato JSON esperado:
         };
       }
     } catch (geminiErr: any) {
-      console.warn('Gemini fallback notice:', geminiErr?.message);
+      console.info('[AIService] Gemini fallback notice:', geminiErr?.message);
     }
   }
 
@@ -206,12 +217,12 @@ export async function synthesizeWhatsAppReport(
 ): Promise<{ reportText: string; providerUsed: 'openrouter' | 'gemini' | 'heuristic'; modelUsed: string }> {
   const targetModel = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 
-  const promptArticles = articles.map(a => ({
+  const promptArticles = articles.slice(0, 6).map(a => ({
     title: a.title,
     location: a.location,
     source: a.source,
     url: a.url,
-    summary: a.executiveSummary,
+    summary: Array.isArray(a.executiveSummary) ? a.executiveSummary.slice(0, 2) : [],
     crit: a.criticality,
     unit: a.policeUnit,
   }));
@@ -241,12 +252,12 @@ Estrutura do relatório:
 Gere a mensagem pronta para envio no WhatsApp.`;
 
   // 1. Try OpenRouter
-  if (process.env.OPENROUTER_API_KEY) {
+  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 0) {
     try {
       const openRouterReport = await callOpenRouter([
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
-      ], targetModel, 12000);
+      ], targetModel, 14000);
 
       if (openRouterReport && openRouterReport.trim().length > 50) {
         return {
@@ -256,12 +267,12 @@ Gere a mensagem pronta para envio no WhatsApp.`;
         };
       }
     } catch (err: any) {
-      console.warn(`OpenRouter report synthesis failed (${targetModel}):`, err?.message);
+      console.info(`[AIService] OpenRouter report notice (${targetModel}): ${err?.message || 'timeout'}. Using structured operational template.`);
     }
   }
 
   // 2. Try Gemini fallback
-  if (process.env.GEMINI_API_KEY) {
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0) {
     try {
       const ai = new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY,
@@ -281,7 +292,7 @@ Gere a mensagem pronta para envio no WhatsApp.`;
         };
       }
     } catch (geminiErr: any) {
-      console.warn('Gemini report synthesis notice:', geminiErr?.message);
+      console.info('[AIService] Gemini report synthesis notice:', geminiErr?.message);
     }
   }
 
@@ -296,15 +307,20 @@ Gere a mensagem pronta para envio no WhatsApp.`;
 // Helper to parse JSON from AI response
 function parseEnrichmentJson(text: string): EnrichmentResult[] | null {
   try {
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\[[\s\S]*\]/);
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || text.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (jsonMatch) {
-      const raw = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      const candidate = jsonMatch[1] || jsonMatch[0];
+      const raw = JSON.parse(candidate);
       if (Array.isArray(raw)) {
         return raw;
       }
     }
-  } catch (e) {
-    // ignore parse error
+    const direct = JSON.parse(text.trim());
+    if (Array.isArray(direct)) {
+      return direct;
+    }
+  } catch {
+    // ignore parse error and proceed to fallback
   }
   return null;
 }

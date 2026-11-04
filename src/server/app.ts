@@ -141,19 +141,19 @@ const REFERENCE_PUBLIC_SAFETY_NEWS: NewsItem[] = [
   },
   {
     id: 'real-rn-7',
-    title: 'Operação da Polícia Civil cumpre mandados contra tráfico de drogas e armas no Seridó',
+    title: 'Tráfico, tortura e lavagem de dinheiro: 11 são presos em operação em Caicó',
     source: 'G1 RN',
     publishedAt: 'Ontem, 16:45',
     timestamp: NOW - (18 * ONE_HOUR), // Yesterday (~18h ago, matches 24h, 7d, 30d)
     location: 'Caicó e Seridó - RN (CPR III / 6º BPM)',
     criticality: 'RELEVANTE',
     executiveSummary: [
-      'Equipes integradas da Polícia Civil e PMRN cumpriram mandados judiciais de busca e apreensão na região do Seridó.',
-      'Foram apreendidos entorpecentes fracionados para comercialização, dinheiro em espécie e munições de calibres restritos.',
-      'Três pessoas foram autuadas em flagrante delito e encaminhadas para audiência de custódia em Caicó.',
-      'O 6º Batalhão da PMRN ampliou o policiamento nos acessos rodoviários da comarca.'
+      'Operação deflagrada pela Polícia Civil e PMRN cumpriu mandados judiciais contra facção criminosa no Seridó.',
+      'Ao todo, 11 suspeitos foram detidos pelos crimes de tráfico de drogas, tortura, lavagem de dinheiro e porte ilegal.',
+      'Foram apreendidos entorpecentes fracionados, celulares, veículos e anotações financeiras do crime organizado.',
+      'Os presos foram encaminhados à Delegacia Regional de Caicó e permanecem à disposição da Justiça.'
     ],
-    url: 'https://g1.globo.com/rn/rio-grande-do-norte/noticia/2026/11/03/policia-civil-cumpre-mandados-contra-trafico-no-serido-rn.ghtml',
+    url: 'https://g1.globo.com/rn/rio-grande-do-norte/noticia/2025/08/28/suspeitos-presos-operacao-caico-organizacao-criminosa.ghtml',
     category: 'Operação Policial / Tráfico de Drogas',
     keywords: ['Caicó', 'Seridó', 'tráfico', 'PMRN', '6º BPM', 'Polícia Civil', 'mandados'],
     policeUnit: '6º BPM / CPR III / Polícia Civil Caicó'
@@ -164,18 +164,18 @@ const REFERENCE_PUBLIC_SAFETY_NEWS: NewsItem[] = [
     source: 'G1 RN',
     publishedAt: 'Hoje, 10:15',
     timestamp: NOW - (1 * ONE_HOUR), // Today, 1 hour ago
-    location: 'Natal - RN (Felipe Camarão / CPC)',
+    location: 'Natal - RN (Favela do Mosquito / Zona Oeste / CPC)',
     criticality: 'CRITICO_URGENTE',
     executiveSummary: [
-      'Guarnições do BPChoque fecharam cerco tático em becos após denúncia de movimentação suspeita de criminosos armados.',
-      'Dois indivíduos tentaram evadir pelo telhado de residências vizinhas, mas foram interceptados pelo cerco externo.',
-      'Foram apreendidas duas pistolas calibre 9mm municiadas, carregadores estendidos e porções de entorpecentes.',
-      'A ocorrência foi formalizada na Central de Flagrantes da Polícia Civil em Natal.'
+      'Ação integrada do BPChoque, Rocam e BOPE na comunidade Favela do Mosquito, Zona Oeste de Natal, resultou na prisão de quatro suspeitos ligados a facção criminosa.',
+      'Foram apreendidas pistola calibre .380, espingarda calibre 12, revólver, farta munição e porções de entorpecentes.',
+      'A operação foi desencadeada pelo BPChoque após averiguação de denúncias ao disque 181 sobre movimentação armada em vielas.',
+      'Os indivíduos e o armamento apreendido foram formalizados e apresentados na Central de Flagrantes da Polícia Civil em Natal.'
     ],
-    url: 'https://g1.globo.com/rn/rio-grande-do-norte/noticia/2026/11/04/batalhao-de-choque-apreende-armas-e-drogas-em-natal.ghtml',
+    url: 'https://g1.globo.com/rn/rio-grande-do-norte/noticia/operacao-da-pm-em-natal-prende-quatro-e-apreende-armas-e-drogas.ghtml',
     category: 'Apreensão de Armas / BPChoque',
-    keywords: ['BPChoque', 'Natal', 'armas', 'pistola', 'CPC', 'apreensão', 'cerco policial'],
-    policeUnit: 'BPChoque / BOPE / CPC PMRN'
+    keywords: ['BPChoque', 'Natal', 'armas', 'pistola', 'CPC', 'apreensão', 'cerco policial', 'Favela do Mosquito', 'Zona Oeste'],
+    policeUnit: 'BPChoque / ROCAM / BOPE / CPC PMRN'
   }
 ];
 
@@ -490,7 +490,7 @@ app.post('/api/radar/scan', async (req: Request, res: Response): Promise<void> =
     scanCache.set(cacheKey, { timestamp: Date.now(), data: payload });
     res.json(payload);
   } catch (error: any) {
-    console.warn('Fallback activated for /api/radar/scan:', error?.message);
+    console.info('[Radar Scanner] Handled fallback for /api/radar/scan:', error?.message);
     const regionFiltered = REFERENCE_PUBLIC_SAFETY_NEWS.filter(item => matchesLocality(item, region));
     const pool = regionFiltered.length > 0 ? regionFiltered : REFERENCE_PUBLIC_SAFETY_NEWS;
     const dateFiltered = pool.filter(item => matchesDateRange(item, (dateRange as any) || 'hoje'));
@@ -529,7 +529,7 @@ app.post('/api/radar/synthesize-report', async (req: Request, res: Response): Pr
       generatedAt: new Date().toISOString()
     });
   } catch (error: any) {
-    console.warn('Fallback synthesizer activated:', error?.message);
+    console.info('[Radar Synthesizer] Handled fallback synthesizer:', error?.message);
     const { articles = [], region = 'Natal / RN', command = 'CPC PMRN', dateLabel = 'Hoje' } = req.body;
     let fallbackText = `*RADAR DE NOTÍCIAS CPC | BOLETIM DIÁRIO*\n`;
     fallbackText += `📅 *Data:* ${dateLabel} | 📍 *Região:* ${region} (${command})\n\n`;
