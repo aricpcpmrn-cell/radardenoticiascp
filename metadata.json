@@ -1,0 +1,6 @@
+{
+  "name": "Radar de notícias CPC",
+  "description": "Monitoramento em tempo real de matérias de segurança pública e polícia com resumos executivos por IA, filtros por localidade e data, alertas de urgência e relatórios diários para WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
