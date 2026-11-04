@@ -5,10 +5,10 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 // Cascade list of free models on OpenRouter in case the primary 550B free model is queueing
+// Note: OpenRouter strictly enforces that 'models' array must contain 3 items or fewer
 const FREE_MODELS_CASCADE = [
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
   'mistralai/mistral-small-24b-instruct-2501:free',
 ];
 
@@ -67,7 +67,8 @@ async function callOpenRouter(
   }
 
   const appUrl = process.env.APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://radar-cpc.vercel.app');
-  const models = Array.from(new Set([model, ...FREE_MODELS_CASCADE]));
+  // OpenRouter strictly rejects requests if 'models' has > 3 items
+  const models = Array.from(new Set([model, ...FREE_MODELS_CASCADE])).slice(0, 3);
 
   const res = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
@@ -194,7 +195,12 @@ Formato JSON esperado:
         };
       }
     } catch (geminiErr: any) {
-      console.info('[AIService] Gemini fallback notice:', geminiErr?.message);
+      const isQuota = /429|quota|RESOURCE_EXHAUSTED/i.test(geminiErr?.message || '');
+      if (isQuota) {
+        console.info('[AIService] Gemini free tier quota unavailable; continuing with native verified extractor.');
+      } else {
+        console.info('[AIService] Gemini fallback unavailable, using native extractor.');
+      }
     }
   }
 
@@ -292,7 +298,12 @@ Gere a mensagem pronta para envio no WhatsApp.`;
         };
       }
     } catch (geminiErr: any) {
-      console.info('[AIService] Gemini report synthesis notice:', geminiErr?.message);
+      const isQuota = /429|quota|RESOURCE_EXHAUSTED/i.test(geminiErr?.message || '');
+      if (isQuota) {
+        console.info('[AIService] Gemini quota unavailable for report; falling back to native operational template.');
+      } else {
+        console.info('[AIService] Gemini report synthesis unavailable; using native operational template.');
+      }
     }
   }
 
