@@ -194,12 +194,12 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
         <div className="p-6 flex-1 overflow-y-auto">
           {isGenerating ? (
             <div className="py-16 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-10 h-10 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                Compilando síntese executiva por IA...
+                Compilando síntese executiva via OpenRouter (Nemotron 3 Ultra)...
               </p>
               <p className="text-xs text-slate-500 max-w-sm">
-                Organizando dados de inteligência, separando ocorrências críticas e preparando links originais.
+                Modelo nvidia/nemotron-3-ultra-550b-a55b:free organizando ocorrências críticas, indicadores e links diretos do RN.
               </p>
             </div>
           ) : (
@@ -221,13 +221,18 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/40 rounded-b-xl">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            Fechar
-          </button>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/40 rounded-b-xl flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-3.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              Fechar
+            </button>
+            <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500">
+              OpenRouter · nvidia/nemotron-3-ultra-550b-a55b:free
+            </span>
+          </div>
 
           <div className="flex items-center gap-2">
             <button

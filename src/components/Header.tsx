@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio, Volume2, VolumeX, Moon, Sun, FileSpreadsheet, ShieldAlert } from 'lucide-react';
+import { Radio, Volume2, VolumeX, Moon, Sun, FileSpreadsheet, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   darkMode: boolean;
@@ -43,6 +43,10 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
               <span className="text-[11px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                 RN
+              </span>
+              <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60" title="Modelo IA: nvidia/nemotron-3-ultra-550b-a55b:free via OpenRouter.ai | Vercel Ready">
+                <Sparkles className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />
+                <span>OpenRouter · Nemotron 3 Ultra</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
