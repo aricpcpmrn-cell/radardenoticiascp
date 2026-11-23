@@ -4,6 +4,7 @@ export interface NewsItem {
   id: string;
   title: string;
   source: string;
+  sourceId?: string;
   publishedAt: string;
   timestamp?: number;
   location: string;
@@ -56,6 +57,7 @@ export interface FilterState {
   dateRange: 'hoje' | '24h' | '7d' | '30d';
   criticality: 'ALL' | 'CRITICO_URGENTE' | 'RELEVANTE' | 'NORMAL';
   searchQuery: string;
+  sourceId: string; // 'ALL' or one of PRIORITY_NEWS_SOURCES ids
 }
 
 export interface DailyReportState {

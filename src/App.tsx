@@ -6,12 +6,12 @@ import { NewsCard } from './components/NewsCard';
 import { DailyReportModal } from './components/DailyReportModal';
 import { IntelligenceOverview } from './components/IntelligenceOverview';
 import { NewsItem, FilterState, REGION_PRESETS } from './types/radar';
+import { PRIORITY_NEWS_SOURCES, isPrioritySourceUrl } from './config/prioritySources';
 import { playTacticalAlertChime } from './utils/audioAlert';
 import { matchesLocality, matchesDateRange } from './utils/filterUtils';
-import { Radio, ShieldAlert, Sparkles, AlertTriangle, ExternalLink, Inbox, RotateCcw } from 'lucide-react';
+import { Sparkles, Inbox } from 'lucide-react';
 
-const STORAGE_KEY_ARTICLES = 'radar_cpc_articles_v8_real_rn_2026';
-const STORAGE_KEY_SELECTED = 'radar_cpc_selected_v8_real_rn_2026';
+const STORAGE_KEY_ARTICLES = 'radar_cpc_articles_v9_priority_15_rn';
 const STORAGE_KEY_THEME = 'radar_cpc_theme';
 const STORAGE_KEY_AUDIO = 'radar_cpc_audio_muted';
 
@@ -35,12 +35,13 @@ export default function App() {
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
-    region: REGION_PRESETS[0].label,
-    command: REGION_PRESETS[0].commandName,
-    keywords: '', // Empty by default: monitors all RN police and crime occurrences
-    dateRange: 'hoje',
+    region: REGION_PRESETS[2].label, // Default to Todo o RN so all 15 priority sources populate on initial load
+    command: REGION_PRESETS[2].commandName,
+    keywords: '',
+    dateRange: '24h',
     criticality: 'ALL',
     searchQuery: '',
+    sourceId: 'ALL',
   });
 
   // Data state
@@ -115,6 +116,7 @@ export default function App() {
           command: activeFilters.command,
           keywords: activeFilters.keywords,
           dateRange: activeFilters.dateRange,
+          sourceId: activeFilters.sourceId,
         }),
       });
 
@@ -216,7 +218,21 @@ export default function App() {
     showToast('🚨 Alerta urgente simulado disparado com sucesso!');
   };
 
-  // Filtered list based on search, locality, dateRange, criticality, and keywords
+  // Count loaded articles per priority source
+  const articleCountBySource = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of articles) {
+      const matchedSrc = item.sourceId
+        ? PRIORITY_NEWS_SOURCES.find(s => s.id === item.sourceId)
+        : PRIORITY_NEWS_SOURCES.find(s => s.name.toLowerCase() === item.source.toLowerCase());
+      if (matchedSrc) {
+        counts[matchedSrc.id] = (counts[matchedSrc.id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [articles]);
+
+  // Filtered list based on priority source, search, locality, dateRange, criticality, and keywords
   const filteredArticles = useMemo(() => {
     // Parse keywords if specified
     const activeKeywords = filters.keywords && filters.keywords.trim()
@@ -226,7 +242,25 @@ export default function App() {
           .filter(Boolean)
       : [];
 
+    const selectedSourceObj = filters.sourceId !== 'ALL'
+      ? PRIORITY_NEWS_SOURCES.find(s => s.id === filters.sourceId)
+      : undefined;
+
     return articles.filter(item => {
+      // 0. Guarantee item belongs strictly to one of the 15 priority RN sources
+      if (!isPrioritySourceUrl(item.url)) {
+        return false;
+      }
+
+      // 0b. Selected priority source filter
+      if (selectedSourceObj) {
+        const matchesId = item.sourceId === selectedSourceObj.id;
+        const matchesName = item.source.toLowerCase() === selectedSourceObj.name.toLowerCase();
+        if (!matchesId && !matchesName) {
+          return false;
+        }
+      }
+
       // 1. Criticality filter
       if (filters.criticality !== 'ALL' && item.criticality !== filters.criticality) {
         return false;
@@ -258,7 +292,6 @@ export default function App() {
           if (itemFullText.includes(kw) || item.keywords.some(k => k.toLowerCase().includes(kw))) {
             return true;
           }
-          // Also check words within the phrase (e.g. "fuzil" in "Apreensão de Fuzil")
           const subwords = kw
             .split(/\s+/)
             .map(w => w.replace(/^[^\wáéíóúâêîôûãõç]+|[^\wáéíóúâêîôûãõç]+$/gi, ''))
@@ -273,7 +306,7 @@ export default function App() {
 
       return true;
     });
-  }, [articles, filters.criticality, filters.region, filters.dateRange, filters.searchQuery, filters.keywords]);
+  }, [articles, filters.criticality, filters.region, filters.dateRange, filters.searchQuery, filters.keywords, filters.sourceId]);
 
   // Urgent articles for top banner
   const activeUrgentArticles = useMemo(() => {
@@ -326,6 +359,7 @@ export default function App() {
         isScanning={isScanning}
         totalResults={filteredArticles.length}
         totalLoaded={articles.length}
+        articleCountBySource={articleCountBySource}
       />
 
       {/* Main Command Dashboard Content */}
@@ -396,7 +430,8 @@ export default function App() {
                   dateRange: '30d',
                   criticality: 'ALL',
                   searchQuery: '',
-                  keywords: ''
+                  keywords: '',
+                  sourceId: 'ALL'
                 }, true)}
                 className="px-3 py-1.5 text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-md text-slate-800 dark:text-slate-200 transition-colors"
               >

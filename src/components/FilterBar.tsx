@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Search, Filter, RefreshCw, Calendar, MapPin, Tag, ShieldCheck, AlertCircle, X, RotateCcw } from 'lucide-react';
+import { Search, Filter, RefreshCw, Calendar, MapPin, Tag, X, RotateCcw, Globe, ExternalLink } from 'lucide-react';
 import { FilterState, REGION_PRESETS, KEYWORD_PRESETS } from '../types/radar';
+import { PRIORITY_NEWS_SOURCES } from '../config/prioritySources';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -9,6 +10,7 @@ interface FilterBarProps {
   isScanning: boolean;
   totalResults: number;
   totalLoaded?: number;
+  articleCountBySource?: Record<string, number>;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -17,9 +19,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onTriggerScan,
   isScanning,
   totalResults,
-  totalLoaded = 0,
+  articleCountBySource = {},
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSourcesPanel, setShowSourcesPanel] = useState(false);
   const [customRegion, setCustomRegion] = useState('');
 
   const handlePresetSelect = (presetId: string) => {
@@ -40,10 +43,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     }
   };
 
+  const selectedSourceObj = filters.sourceId !== 'ALL'
+    ? PRIORITY_NEWS_SOURCES.find(s => s.id === filters.sourceId)
+    : undefined;
+
   return (
     <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-5 transition-colors">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Main Row: Search Input + Region Quick Selector + Scan Button */}
+        {/* Main Row: Search Input + Region Quick Selector + Date Range + Scan Button */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
           {/* Real-time search in current results */}
           <div className="relative flex-1">
@@ -118,11 +125,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-            <span>{isScanning ? 'Varrendo Fontes...' : 'Atualizar Radar'}</span>
+            <span>{isScanning ? 'Varrendo 15 Fontes...' : 'Atualizar Radar'}</span>
           </button>
         </div>
 
-        {/* Severity Segmented Filter + Advanced Toggle */}
+        {/* Severity Segmented Filter + Priority Sources Toggle + Advanced Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/60">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap mr-1">
@@ -153,10 +160,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             })}
           </div>
 
-          <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+          <div className="flex items-center gap-3 self-end sm:self-auto shrink-0 flex-wrap justify-end">
             <span className="text-xs text-slate-500 dark:text-slate-400">
               <strong className="font-mono-tabular text-slate-900 dark:text-slate-100">{totalResults}</strong> matérias
             </span>
+            <button
+              onClick={() => setShowSourcesPanel(!showSourcesPanel)}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors font-medium ${
+                showSourcesPanel || filters.sourceId !== 'ALL'
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                  : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Fontes Prioritárias ({PRIORITY_NEWS_SOURCES.length})</span>
+            </button>
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
@@ -166,6 +184,75 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Collapsible Priority Sources Directory (Exclusively the 15 configured RN portals & blogs) */}
+        {showSourcesPanel && (
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 rounded-lg border border-slate-200 dark:border-slate-800/80 space-y-2.5 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                Sites e Blogs Prioritários Monitorados ({PRIORITY_NEWS_SOURCES.length} fontes exclusivas do RN)
+              </div>
+              {filters.sourceId !== 'ALL' && (
+                <button
+                  onClick={() => onFilterChange({ sourceId: 'ALL' }, true)}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Consultar todas as 15 fontes
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {PRIORITY_NEWS_SOURCES.map((src) => {
+                const isActive = filters.sourceId === src.id;
+                const count = articleCountBySource[src.id] || 0;
+                return (
+                  <div
+                    key={src.id}
+                    className={`flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors ${
+                      isActive
+                        ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-blue-600'
+                    }`}
+                  >
+                    <button
+                      onClick={() => onFilterChange({ sourceId: isActive ? 'ALL' : src.id }, true)}
+                      className="flex-1 text-left truncate flex items-center gap-1.5"
+                      title={`Filtrar matérias exclusivamente de ${src.name}`}
+                    >
+                      <span className="truncate">{src.name}</span>
+                      {count > 0 && (
+                        <span
+                          className={`font-mono-tabular text-[10px] px-1 py-0.2 rounded shrink-0 ${
+                            isActive
+                              ? 'bg-blue-800 text-blue-100'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                    <a
+                      href={src.homeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      referrerPolicy="no-referrer"
+                      className={`shrink-0 p-0.5 rounded transition-colors ${
+                        isActive
+                          ? 'text-blue-100 hover:text-white'
+                          : 'text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
+                      }`}
+                      title={`Abrir ${src.homeUrl}`}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Collapsible Advanced Filters: Custom Location & Specific Keywords */}
         {showAdvanced && (
@@ -246,7 +333,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <span className="text-slate-500 dark:text-slate-400 font-medium mr-1">Filtros ativos:</span>
 
             {/* Locality badge */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900 font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900 font-medium">
               <MapPin className="w-3 h-3 text-blue-600 dark:text-blue-400" />
               <span>{filters.region}</span>
               {!filters.region.includes('Geral') && (
@@ -261,7 +348,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             </span>
 
             {/* Date Range badge */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900 font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900 font-medium">
               <Calendar className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
               <span>
                 {filters.dateRange === 'hoje'
@@ -274,9 +361,24 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               </span>
             </span>
 
+            {/* Priority Source badge */}
+            {selectedSourceObj && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-900 font-medium">
+                <Globe className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                <span>Fonte: {selectedSourceObj.name}</span>
+                <button
+                  onClick={() => onFilterChange({ sourceId: 'ALL' }, true)}
+                  title="Consultar todas as 15 fontes prioritárias"
+                  className="hover:text-sky-950 dark:hover:text-white ml-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
             {/* Keywords badge */}
             {filters.keywords && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-medium">
                 <Tag className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                 <span className="truncate max-w-[200px]">{filters.keywords}</span>
                 <button
@@ -291,7 +393,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
             {/* Search query badge */}
             {filters.searchQuery && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-medium">
                 <Search className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                 <span>&quot;{filters.searchQuery}&quot;</span>
                 <button
@@ -306,7 +408,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </div>
 
           {/* Reset button if any filter is modified */}
-          {(filters.searchQuery || filters.keywords || !filters.region.includes('Geral') || filters.criticality !== 'ALL' || filters.dateRange !== 'hoje') && (
+          {(filters.searchQuery || filters.keywords || !filters.region.includes('Geral') || filters.criticality !== 'ALL' || filters.dateRange !== 'hoje' || filters.sourceId !== 'ALL') && (
             <button
               onClick={() => onFilterChange({
                 region: REGION_PRESETS[2].label,
@@ -314,7 +416,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 keywords: '',
                 searchQuery: '',
                 criticality: 'ALL',
-                dateRange: '30d'
+                dateRange: '30d',
+                sourceId: 'ALL'
               }, true)}
               className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:underline"
             >
